@@ -1,4 +1,15 @@
-from emotion_training import (
+import argparse
+import json
+import sys
+from pathlib import Path
+
+# 允许直接 `python main.py` 运行（无需手动设置 PYTHONPATH）
+ROOT = Path(__file__).resolve().parent
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from emotion_training import (  # noqa: E402
     Emotion,
     EmotionDiary,
     EmotionTrainingEngine,
@@ -36,10 +47,47 @@ def demo() -> None:
     if hint.need_hint:
         print("[Hint]", hint.hint_text)
 
-    diary = EmotionDiary()
-    entry = diary.add_photo("sample_happy_face.jpg")
-    print("[Diary]", entry.emotion.value, diary.grouped_summary())
+
+def cmd_diary_add(args: argparse.Namespace) -> None:
+    diary = EmotionDiary(storage_file=args.storage)
+    entry = diary.add_photo(args.image)
+    print(json.dumps({"image": entry.image_path, "emotion": entry.emotion.value, "timestamp": entry.timestamp}, ensure_ascii=False))
+
+
+def cmd_diary_summary(args: argparse.Namespace) -> None:
+    diary = EmotionDiary(storage_file=args.storage)
+    print(json.dumps(diary.grouped_summary(), ensure_ascii=False, indent=2))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="AI辅助情绪训练系统原型 CLI")
+    sub = parser.add_subparsers(dest="command")
+
+    sub.add_parser("demo", help="运行三级训练演示")
+
+    diary_add = sub.add_parser("diary-add", help="向情绪日记添加一张照片")
+    diary_add.add_argument("image", help="图片路径（当前由文件名关键词模拟分类）")
+    diary_add.add_argument("--storage", default="emotion_diary.json", help="日记存储JSON文件")
+
+    diary_summary = sub.add_parser("diary-summary", help="输出情绪日记统计")
+    diary_summary.add_argument("--storage", default="emotion_diary.json", help="日记存储JSON文件")
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.command in (None, "demo"):
+        demo()
+    elif args.command == "diary-add":
+        cmd_diary_add(args)
+    elif args.command == "diary-summary":
+        cmd_diary_summary(args)
+    else:
+        parser.error(f"未知命令: {args.command}")
 
 
 if __name__ == "__main__":
-    demo()
+    main()
